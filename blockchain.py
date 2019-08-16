@@ -1,7 +1,10 @@
 from functools import reduce
 import hashlib as hl
-import json
 from collections import OrderedDict
+
+# Import two functions from our hash_util.py file. Omit the ".py" in the import
+from hash_util import hash_string_256, hash_block
+
 # The reward we give to miners (for creating a new block)
 MINING_REWARD = 10
 
@@ -22,26 +25,31 @@ owner = 'Oleh'
 participants = {'Oleh'}
 
 
-def hash_block(block):
-    """Hashes a block and returns a string representation of it.
+def valid_proof(transactions, last_hash, proof):
+    """Validate a proof of work number and see if it solves the puzzle algorithm (two leading 0s)
 
     Arguments:
-        :block: The block that should be hashed.
+        :transactions: The transactions of the block for which the proof is created.
+        :last_hash: The previous block's hash which will be stored in the current block.
+        :proof: The proof number we're testing.
     """
-    return hl.sha256(json.dumps(block, sort_keys=True).encode()).hexdigest()
-
-
-def valid_proof(transactions, last_hash, proof):
+    # Create a string with all the hash inputs
     guess = (str(transactions) + str(last_hash) + str(proof)).encode()
-    guess_hash = hl.sha256(guess).hexdigest()
+    # Hash the string
+    # IMPORTANT: This is NOT the same hash as will be stored in the previous_hash. It's a not a block's hash. It's only used for the proof-of-work algorithm.
+    guess_hash = hash_string_256(guess)
     print(guess_hash)
+    # Only a hash (which is based on the above inputs) which starts with two 0s is treated as valid
+    # This condition is of course defined by you. You could also require 10 leading 0s - this would take significantly longer (and this allows you to control the speed at which new blocks can be added)
     return guess_hash[0:2] == '00'
 
 
 def proof_of_work():
+    """Generate a proof of work for the open transactions, the hash of the previous block and a random number (which is guessed until it fits)."""
     last_block = blockchain[-1]
     last_hash = hash_block(last_block)
     proof = 0
+    # Try different PoW numbers and return the first valid one
     while not valid_proof(open_transactions, last_hash, proof):
         proof += 1
     return proof
@@ -62,6 +70,7 @@ def get_balance(participant):
     open_tx_sender = [tx['amount']
                       for tx in open_transactions if tx['sender'] == participant]
     tx_sender.append(open_tx_sender)
+    print(tx_sender)
     amount_sent = reduce(lambda tx_sum, tx_amt: tx_sum + sum(tx_amt)
                          if len(tx_amt) > 0 else tx_sum + 0, tx_sender, 0)
     # This fetches received coin amounts of transactions that were already included in blocks of the blockchain
@@ -227,7 +236,7 @@ while waiting_for_input:
     elif user_choice == 'h':
         # Make sure that you don't try to "hack" the blockchain if it's empty
         if len(blockchain) >= 1:
-            blockchain[1] = {
+            blockchain[0] = {
                 'previous_hash': '',
                 'index': 0,
                 'transactions': [{'sender': 'Chris', 'recipient': 'Oleh', 'amount': 100.0}]
